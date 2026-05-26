@@ -27,6 +27,15 @@ const BCP = (function () {
     "Komponenttest",
   ];
   const TEST_RESULTS = ["Bestått", "Delvis bestått", "Ikke bestått", "Planlagt"];
+  const PLAN_STATUS = ["Utkast", "Aktiv", "Under revisjon"];
+  const RECOVERY_STRATEGIES = [
+    "Failover til reserveløsning",
+    "Gjenoppretting fra backup",
+    "Manuell nødprosedyre",
+    "Leverandøravtale/SLA",
+    "Reetablering på alternativ lokasjon",
+    "Annet",
+  ];
 
   function emptyState() {
     return {
@@ -35,6 +44,7 @@ const BCP = (function () {
       systems: [],
       bia: [],
       tests: [],
+      plans: [],
     };
   }
 
@@ -104,11 +114,17 @@ const BCP = (function () {
       state.tests.forEach((t) => {
         t.systemIds = (t.systemIds || []).filter((sid) => sid !== id);
       });
+      state.plans.forEach((pl) => {
+        pl.systemIds = (pl.systemIds || []).filter((sid) => sid !== id);
+      });
     }
     if (collection === "processes") {
       state.bia = state.bia.filter((b) => b.processId !== id);
       state.tests.forEach((t) => {
         t.processIds = (t.processIds || []).filter((pid) => pid !== id);
+      });
+      state.plans.forEach((pl) => {
+        pl.processIds = (pl.processIds || []).filter((pid) => pid !== id);
       });
     }
   }
@@ -178,7 +194,7 @@ const BCP = (function () {
     if (!obj || typeof obj !== "object") throw new Error("Ugyldig fil");
     state = Object.assign(emptyState(), obj);
     state.meta = Object.assign({ orgName: "", updatedAt: null }, obj.meta || {});
-    ["processes", "systems", "bia", "tests"].forEach((c) => {
+    ["processes", "systems", "bia", "tests", "plans"].forEach((c) => {
       if (!Array.isArray(state[c])) state[c] = [];
     });
     touch();
@@ -269,6 +285,26 @@ const BCP = (function () {
       nextDate: "2026-09-15",
     });
 
+    upsert("plans", {
+      name: "Gjenoppretting av kundedatabase",
+      strategy: "Gjenoppretting fra backup",
+      status: "Aktiv",
+      systemIds: [sDb.id],
+      processIds: [pOrder.id],
+      owner: "IT-drift",
+      activation: "Aktiveres ved datatap eller utilgjengelig database utover 1 time.",
+      prerequisites: "Tilgang til backup-lagring (Azure), administratortilgang til SQL.",
+      contacts: "IT-drift vakttelefon 99 00 00 00, leverandør Microsoft support.",
+      lastReviewed: "2026-04-01",
+      steps: [
+        { desc: "Bekreft omfang og varsle beredskapsledelsen.", role: "IT-leder", time: "15 min" },
+        { desc: "Isoler berørt system og stopp skrivetrafikk.", role: "IT-drift", time: "15 min" },
+        { desc: "Hent siste verifiserte backup fra lagring.", role: "IT-drift", time: "30 min" },
+        { desc: "Gjenopprett database og verifiser integritet.", role: "IT-drift", time: "90 min" },
+        { desc: "Gjenåpne for produksjon og bekreft med fagansvarlig.", role: "Salgsleder", time: "30 min" },
+      ],
+    });
+
     touch();
     save();
   }
@@ -283,6 +319,8 @@ const BCP = (function () {
       IMPACT_LEVELS,
       TEST_TYPES,
       TEST_RESULTS,
+      PLAN_STATUS,
+      RECOVERY_STRATEGIES,
     },
     get state() {
       return state;

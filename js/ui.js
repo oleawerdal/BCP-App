@@ -172,6 +172,16 @@ const UI = (function () {
     );
   }
 
+  function planStatusVariant(status) {
+    return (
+      {
+        Aktiv: "ok",
+        "Under revisjon": "warn",
+        Utkast: "info",
+      }[status] || "default"
+    );
+  }
+
   function impactVariant(level) {
     return (
       {
@@ -197,6 +207,7 @@ const UI = (function () {
     badge,
     criticalityVariant,
     resultVariant,
+    planStatusVariant,
     impactVariant,
   };
 })();

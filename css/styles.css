@@ -255,6 +255,29 @@ h2 { font-size: 16px; margin: 0 0 12px; }
 .impact-grid { display: flex; flex-direction: column; gap: 8px; }
 .impact-row { display: grid; grid-template-columns: 1fr 160px; align-items: center; gap: 10px; }
 
+/* ---- Gjenopprettingsplaner ---- */
+.plan-list { display: flex; flex-direction: column; gap: 16px; }
+.plan-card { margin-top: 0; }
+.plan-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.plan-head h2 { margin: 0 0 2px; }
+.plan-head .row-actions { text-align: right; }
+.plan-meta { display: grid; grid-template-columns: 160px 1fr; gap: 4px 16px; margin: 14px 0 0; font-size: 14px; }
+.plan-meta dt { color: var(--muted); font-weight: 600; }
+.plan-meta dd { margin: 0; }
+.steps { margin: 14px 0 0; padding-left: 22px; }
+.steps li { padding: 4px 0; }
+.steps li span { display: inline; }
+.step-meta { color: var(--muted); font-size: 12px; margin-left: 8px; }
+
+.steps-editor { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.step-head, .step-row { display: grid; grid-template-columns: 1fr 130px 90px 28px; gap: 8px; align-items: center; }
+.step-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); margin-bottom: 6px; }
+.step-row { margin-bottom: 8px; }
+.step-row input { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; font-size: 14px; font-family: inherit; }
+.step-del { font-size: 20px; line-height: 1; padding: 0; }
+.btn-sm { padding: 6px 10px; font-size: 13px; }
+@media (max-width: 640px) { .plan-meta { grid-template-columns: 1fr; } }
+
 /* ---- Toast ---- */
 .toast-root { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 200; }
 .toast {

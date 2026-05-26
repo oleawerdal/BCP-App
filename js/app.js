@@ -88,6 +88,9 @@
       const t = BCP.lastTestForSystem(sys.id);
       return t && t.result === "Bestått";
     });
+    const planForSystem = (id) =>
+      s.plans.find((pl) => (pl.systemIds || []).includes(id)) || null;
+    const critWithPlan = critSystems.filter((sys) => planForSystem(sys.id));
 
     // Tester forfalt / kommende
     const today = todayISO();
@@ -102,6 +105,7 @@
     if (totalP) comps.push(withBia / totalP);
     if (totalP) comps.push((totalP - unmapped.length) / totalP);
     if (critSystems.length) comps.push(testedCrit.length / critSystems.length);
+    if (critSystems.length) comps.push(critWithPlan.length / critSystems.length);
     const score = comps.length
       ? Math.round((comps.reduce((a, b) => a + b, 0) / comps.length) * 100)
       : 0;
@@ -181,13 +185,14 @@
     }
     html += "</div>";
 
-    html += '<div class="panel"><h2>Testdekning – kritiske systemer</h2>';
+    html += '<div class="panel"><h2>Beredskap – kritiske systemer</h2>';
     if (critSystems.length) {
-      html += '<table class="table"><thead><tr><th>System</th><th>Avledet RTO</th><th>Siste test</th></tr></thead><tbody>';
+      html += '<table class="table"><thead><tr><th>System</th><th>Avledet RTO</th><th>Siste test</th><th>Plan</th></tr></thead><tbody>';
       html += critSystems
         .map((sys) => {
           const rto = BCP.minRtoMinutesForSystem(sys.id);
           const t = BCP.lastTestForSystem(sys.id);
+          const pl = planForSystem(sys.id);
           const rtoTxt = rto ? rto.value + " " + rto.unit : '<span class="muted">ikke satt</span>';
           let testTxt;
           if (!t) testTxt = '<span class="badge badge-crit">Aldri testet</span>';
@@ -197,8 +202,19 @@
               ' <span class="muted">' +
               UI.esc(t.date) +
               "</span>";
+          const planTxt = pl
+            ? UI.badge(pl.status || "Plan", UI.planStatusVariant(pl.status))
+            : '<span class="badge badge-crit">Mangler</span>';
           return (
-            "<tr><td>" + UI.esc(sys.name) + "</td><td>" + rtoTxt + "</td><td>" + testTxt + "</td></tr>"
+            "<tr><td>" +
+            UI.esc(sys.name) +
+            "</td><td>" +
+            rtoTxt +
+            "</td><td>" +
+            testTxt +
+            "</td><td>" +
+            planTxt +
+            "</td></tr>"
           );
         })
         .join("");
@@ -261,7 +277,7 @@
       '<div class="card-value">' +
       score +
       "%</div>" +
-      '<div class="card-sub">BIA-dekning · systemkobling · testing</div></div>'
+      '<div class="card-sub">BIA · systemkobling · testing · planer</div></div>'
     );
   }
 
@@ -600,6 +616,200 @@
     void body;
   }
 
+  /* ---------- Visning: Gjenopprettingsplaner ---------- */
+
+  function viewPlaner() {
+    const s = BCP.state;
+    let html =
+      '<div class="view-head"><h1>Gjenopprettingsplaner</h1>' +
+      '<button class="btn btn-primary" id="btnNew">+ Ny plan</button></div>' +
+      '<p class="muted">IKT-kontinuitetsplaner som beskriver hvordan systemer og prosesser gjenopprettes ' +
+      "ved avbrudd – med strategi, aktiveringskriterier og konkrete steg, slik A.5.30 krever.</p>";
+
+    if (!s.plans.length) {
+      html += emptyHint("Ingen gjenopprettingsplaner registrert enda.");
+    } else {
+      html += '<div class="plan-list">';
+      html += s.plans
+        .map((pl) => {
+          const refs = []
+            .concat((pl.systemIds || []).map((id) => systemName(id)))
+            .concat((pl.processIds || []).map((id) => processName(id)));
+          const steps = (pl.steps || []).filter((st) => st && st.desc);
+          let stepsHtml = "";
+          if (steps.length) {
+            stepsHtml =
+              '<ol class="steps">' +
+              steps
+                .map(
+                  (st) =>
+                    "<li><span>" +
+                    UI.esc(st.desc) +
+                    "</span>" +
+                    (st.role || st.time
+                      ? '<span class="step-meta">' +
+                        UI.esc([st.role, st.time].filter(Boolean).join(" · ")) +
+                        "</span>"
+                      : "") +
+                    "</li>"
+                )
+                .join("") +
+              "</ol>";
+          }
+          return (
+            '<div class="panel plan-card">' +
+            '<div class="plan-head"><div><h2>' +
+            UI.esc(pl.name) +
+            "</h2>" +
+            (pl.strategy ? '<span class="muted">' + UI.esc(pl.strategy) + "</span>" : "") +
+            "</div><div>" +
+            UI.badge(pl.status || "Utkast", UI.planStatusVariant(pl.status)) +
+            '<div class="row-actions" style="margin-top:8px">' +
+            '<button class="link" data-edit="' + pl.id + '">Rediger</button>' +
+            '<button class="link link-danger" data-del="' + pl.id + '">Slett</button>' +
+            "</div></div></div>" +
+            '<dl class="plan-meta">' +
+            (refs.length ? "<dt>Omfang</dt><dd>" + UI.esc(refs.join(", ")) + "</dd>" : "") +
+            (pl.owner ? "<dt>Ansvarlig</dt><dd>" + UI.esc(pl.owner) + "</dd>" : "") +
+            (pl.activation ? "<dt>Aktivering</dt><dd>" + UI.esc(pl.activation) + "</dd>" : "") +
+            (pl.prerequisites ? "<dt>Forutsetninger</dt><dd>" + UI.esc(pl.prerequisites) + "</dd>" : "") +
+            (pl.contacts ? "<dt>Kontakter</dt><dd>" + UI.esc(pl.contacts) + "</dd>" : "") +
+            (pl.lastReviewed ? "<dt>Sist gjennomgått</dt><dd>" + UI.esc(pl.lastReviewed) + "</dd>" : "") +
+            "</dl>" +
+            stepsHtml +
+            "</div>"
+          );
+        })
+        .join("");
+      html += "</div>";
+    }
+    content.innerHTML = html;
+
+    document.getElementById("btnNew").addEventListener("click", () => openPlanForm(null));
+    content.querySelectorAll("[data-edit]").forEach((b) =>
+      b.addEventListener("click", () => openPlanForm(BCP.getById("plans", b.dataset.edit)))
+    );
+    content.querySelectorAll("[data-del]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const pl = BCP.getById("plans", b.dataset.del);
+        UI.confirmDialog('Slette planen "' + pl.name + '"?', () => {
+          BCP.remove("plans", pl.id);
+          render("planer");
+          UI.toast("Plan slettet", "ok");
+        });
+      })
+    );
+  }
+
+  function stepRowHtml(step) {
+    step = step || {};
+    return (
+      '<div class="step-row">' +
+      '<input class="s-desc" placeholder="Hva skal gjøres" value="' +
+      UI.esc(step.desc || "") +
+      '">' +
+      '<input class="s-role" placeholder="Ansvarlig" value="' +
+      UI.esc(step.role || "") +
+      '">' +
+      '<input class="s-time" placeholder="Tid" value="' +
+      UI.esc(step.time || "") +
+      '">' +
+      '<button type="button" class="link link-danger step-del" title="Fjern steg">&times;</button>' +
+      "</div>"
+    );
+  }
+
+  function openPlanForm(plan) {
+    const s = BCP.state;
+    const sysChecks = s.systems.length
+      ? s.systems
+          .map(
+            (sys) =>
+              '<label class="check"><input type="checkbox" name="systemIds" value="' +
+              sys.id +
+              '"' +
+              (plan && (plan.systemIds || []).includes(sys.id) ? " checked" : "") +
+              "> " +
+              UI.esc(sys.name) +
+              "</label>"
+          )
+          .join("")
+      : '<span class="muted">Ingen systemer</span>';
+    const procChecks = s.processes.length
+      ? s.processes
+          .map(
+            (p) =>
+              '<label class="check"><input type="checkbox" name="processIds" value="' +
+              p.id +
+              '"' +
+              (plan && (plan.processIds || []).includes(p.id) ? " checked" : "") +
+              "> " +
+              UI.esc(p.name) +
+              "</label>"
+          )
+          .join("")
+      : '<span class="muted">Ingen prosesser</span>';
+
+    const existingSteps = (plan && plan.steps && plan.steps.length ? plan.steps : [{}])
+      .map(stepRowHtml)
+      .join("");
+
+    const inner =
+      UI.field("Navn på plan", UI.input("name", plan && plan.name, { required: "required", placeholder: "f.eks. Gjenoppretting av ERP" })) +
+      '<div class="grid-2-tight">' +
+      UI.field("Strategi", UI.select("strategy", C.RECOVERY_STRATEGIES, plan ? plan.strategy : C.RECOVERY_STRATEGIES[0])) +
+      UI.field("Status", UI.select("status", C.PLAN_STATUS, plan ? plan.status : "Utkast")) +
+      "</div>" +
+      UI.field("Omfattede systemer", '<div class="check-group">' + sysChecks + "</div>") +
+      UI.field("Omfattede prosesser", '<div class="check-group">' + procChecks + "</div>") +
+      UI.field("Ansvarlig", UI.input("owner", plan && plan.owner, { placeholder: "rolle eller person" })) +
+      UI.field("Aktiveringskriterier", UI.textarea("activation", plan && plan.activation, 2), "Når skal planen aktiveres?") +
+      UI.field("Forutsetninger", UI.textarea("prerequisites", plan && plan.prerequisites, 2), "Backup, tilganger, utstyr m.m.") +
+      UI.field("Kontakter", UI.textarea("contacts", plan && plan.contacts, 2)) +
+      UI.field(
+        "Gjenopprettingssteg",
+        '<div class="steps-editor"><div class="step-head"><span>Hva skal gjøres</span><span>Ansvarlig</span><span>Tid</span><span></span></div>' +
+          '<div id="stepRows">' +
+          existingSteps +
+          "</div>" +
+          '<button type="button" class="btn btn-ghost btn-sm" id="addStep">+ Legg til steg</button></div>'
+      ) +
+      UI.field("Sist gjennomgått", UI.input("lastReviewed", plan && plan.lastReviewed, { type: "date" }));
+
+    const form = formShell(inner);
+    const body = UI.openModal(plan ? "Rediger plan" : "Ny gjenopprettingsplan", form, { wide: true });
+
+    const stepRows = body.querySelector("#stepRows");
+    body.querySelector("#addStep").addEventListener("click", () => {
+      stepRows.insertAdjacentHTML("beforeend", stepRowHtml({}));
+    });
+    stepRows.addEventListener("click", (e) => {
+      if (e.target.classList.contains("step-del")) {
+        e.target.closest(".step-row").remove();
+      }
+    });
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const data = readForm(form);
+      if (!data.name) return UI.toast("Navn er påkrevd", "warn");
+      data.systemIds = readChecked(form, "systemIds");
+      data.processIds = readChecked(form, "processIds");
+      data.steps = Array.from(stepRows.querySelectorAll(".step-row"))
+        .map((row) => ({
+          desc: row.querySelector(".s-desc").value.trim(),
+          role: row.querySelector(".s-role").value.trim(),
+          time: row.querySelector(".s-time").value.trim(),
+        }))
+        .filter((st) => st.desc || st.role || st.time);
+      if (plan) data.id = plan.id;
+      BCP.upsert("plans", data);
+      UI.closeModal();
+      render(currentView);
+      UI.toast("Plan lagret", "ok");
+    });
+  }
+
   /* ---------- Visning: Tester ---------- */
 
   function viewTester() {
@@ -731,6 +941,7 @@
     prosesser: viewProsesser,
     systemer: viewSystemer,
     bia: viewBia,
+    planer: viewPlaner,
     tester: viewTester,
   };
 
